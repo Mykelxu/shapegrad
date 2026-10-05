@@ -4,7 +4,7 @@ Repaint images with shapes that learn. A compact PyTorch experiment that fits la
 
 Instead of searching for one new shape at a time, ShapeGrad jointly optimizes position, radii, color, and opacity with Adam. A soft ellipse renderer makes these parameters differentiable; pixel and edge losses guide the fit. No API key, model download, or training dataset required.
 
-This is per-image gradient-based optimization, not a pretrained neural network. It is an original educational implementation of an established idea, not a new research method.
+This is per-image gradient-based optimization and is an original educational implementation of an established idea.
 
 ## Quick start
 
