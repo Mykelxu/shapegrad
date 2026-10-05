@@ -10,12 +10,14 @@ class AppTests(unittest.TestCase):
         app.slider[0].set_value(8)
         app.slider[1].set_value(25)
         app.select_slider[0].set_value(48)
-        app.checkbox[0].check()
+        app.slider[2].set_value(8)
+        app.slider[3].set_value(8)
+        app.selectbox[0].select("Residual-guided search")
         app.button[0].click().run()
         self.assertFalse(app.exception)
         results = app.session_state['results']
-        self.assertEqual(len(results), 3)
+        self.assertEqual(len(results), 1)
         for result in results:
             self.assertTrue(result['png'].startswith(b'\x89PNG'))
-            self.assertIn('<ellipse', result['svg'])
+            self.assertIn('<svg', result['svg'])
             self.assertLessEqual(result['metrics']['best_loss'], result['metrics']['initial_loss'])

@@ -1,0 +1,167 @@
+{
+  "rows": [
+    {
+      "image_seed": 2000,
+      "seed": 7,
+      "method": "baseline",
+      "mse": 0.014196408912539482,
+      "psnr_db": 18.47821499751197,
+      "seconds": 0.8407794998493046,
+      "exact_evaluations": 800
+    },
+    {
+      "image_seed": 2000,
+      "seed": 7,
+      "method": "coarse_heuristic",
+      "mse": 0.01197618618607521,
+      "psnr_db": 19.216814609151267,
+      "seconds": 2.2704765000380576,
+      "exact_evaluations": 800
+    },
+    {
+      "image_seed": 2000,
+      "seed": 7,
+      "method": "learned",
+      "mse": 0.011556931771337986,
+      "psnr_db": 19.371574506598613,
+      "seconds": 2.638634300092235,
+      "exact_evaluations": 800
+    },
+    {
+      "image_seed": 2000,
+      "seed": 19,
+      "method": "baseline",
+      "mse": 0.014761112630367279,
+      "psnr_db": 18.30880905994189,
+      "seconds": 0.8523661999497563,
+      "exact_evaluations": 800
+    },
+    {
+      "image_seed": 2000,
+      "seed": 19,
+      "method": "coarse_heuristic",
+      "mse": 0.011949347332119942,
+      "psnr_db": 19.22655815033805,
+      "seconds": 2.2866821999195963,
+      "exact_evaluations": 800
+    },
+    {
+      "image_seed": 2000,
+      "seed": 19,
+      "method": "learned",
+      "mse": 0.01242968812584877,
+      "psnr_db": 19.055397681340708,
+      "seconds": 2.5154614001512527,
+      "exact_evaluations": 800
+    },
+    {
+      "image_seed": 2001,
+      "seed": 7,
+      "method": "baseline",
+      "mse": 0.020045554265379906,
+      "psnr_db": 16.979819308792585,
+      "seconds": 0.8875173002015799,
+      "exact_evaluations": 800
+    },
+    {
+      "image_seed": 2001,
+      "seed": 7,
+      "method": "coarse_heuristic",
+      "mse": 0.0150183429941535,
+      "psnr_db": 18.233779813260735,
+      "seconds": 2.4288110001944005,
+      "exact_evaluations": 800
+    },
+    {
+      "image_seed": 2001,
+      "seed": 7,
+      "method": "learned",
+      "mse": 0.014707322232425213,
+      "psnr_db": 18.32466392231243,
+      "seconds": 2.4837698000483215,
+      "exact_evaluations": 800
+    },
+    {
+      "image_seed": 2001,
+      "seed": 19,
+      "method": "baseline",
+      "mse": 0.01790768839418888,
+      "psnr_db": 17.469604712386538,
+      "seconds": 1.0245766998268664,
+      "exact_evaluations": 800
+    },
+    {
+      "image_seed": 2001,
+      "seed": 19,
+      "method": "coarse_heuristic",
+      "mse": 0.01571354642510414,
+      "psnr_db": 18.037257870137907,
+      "seconds": 2.650512699969113,
+      "exact_evaluations": 800
+    },
+    {
+      "image_seed": 2001,
+      "seed": 19,
+      "method": "learned",
+      "mse": 0.015722045674920082,
+      "psnr_db": 18.0349094636733,
+      "seconds": 2.962054800009355,
+      "exact_evaluations": 800
+    },
+    {
+      "image_seed": 2002,
+      "seed": 7,
+      "method": "baseline",
+      "mse": 0.014620230533182621,
+      "psnr_db": 18.35045779327559,
+      "seconds": 1.0221318998374045,
+      "exact_evaluations": 800
+    },
+    {
+      "image_seed": 2002,
+      "seed": 7,
+      "method": "coarse_heuristic",
+      "mse": 0.012900990433990955,
+      "psnr_db": 18.893769467933716,
+      "seconds": 2.4674742999486625,
+      "exact_evaluations": 800
+    },
+    {
+      "image_seed": 2002,
+      "seed": 7,
+      "method": "learned",
+      "mse": 0.011128468438982964,
+      "psnr_db": 19.53564601547322,
+      "seconds": 2.5955203000921756,
+      "exact_evaluations": 800
+    },
+    {
+      "image_seed": 2002,
+      "seed": 19,
+      "method": "baseline",
+      "mse": 0.012531316839158535,
+      "psnr_db": 19.02003289266781,
+      "seconds": 0.8840200998820364,
+      "exact_evaluations": 800
+    },
+    {
+      "image_seed": 2002,
+      "seed": 19,
+      "method": "coarse_heuristic",
+      "mse": 0.012678424827754498,
+      "psnr_db": 18.969347000117168,
+      "seconds": 2.2791057000868022,
+      "exact_evaluations": 800
+    },
+    {
+      "image_seed": 2002,
+      "seed": 19,
+      "method": "learned",
+      "mse": 0.012209953740239143,
+      "psnr_db": 19.132859814602718,
+      "seconds": 2.6828479000832886,
+      "exact_evaluations": 800
+    }
+  ],
+  "note": "Same full-resolution scoring budget; learned mode ranks 4x candidates with low-resolution features. Feature extraction and inference are included in wall time. This is a small synthetic benchmark, not evidence of photo generalization."
+}
