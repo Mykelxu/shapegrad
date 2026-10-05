@@ -9,7 +9,7 @@ class ShapeGradTests(unittest.TestCase):
         torch.set_num_threads(2)
         target = torch.ones(24, 32, 3) * .9
         target[6:18, 8:24] = torch.tensor([.9, .1, .2])
-        scene, losses = fit(target, count=8, steps=60)
+        scene, losses = fit(target, count=8, steps=60, shape_family="ellipse")
         self.assertLess(min(losses), losses[0] * .75)
         root = ET.fromstring(scene.svg(320, 240))
         self.assertEqual(len(root.findall('{http://www.w3.org/2000/svg}ellipse')), 8)
@@ -18,7 +18,8 @@ class ShapeGradTests(unittest.TestCase):
         self.assertTrue(torch.isfinite(rendered).all())
         rendered.mean().backward()
         for parameter in scene.parameters():
-            self.assertTrue(torch.isfinite(parameter.grad).all())
+            if parameter.grad is not None:
+                self.assertTrue(torch.isfinite(parameter.grad).all())
 
     def test_search_methods(self):
         target = torch.ones(12, 16, 3) * .8
@@ -34,6 +35,22 @@ class ShapeGradTests(unittest.TestCase):
         self.assertFalse(accept_proposal(.1, 0, 0))
         self.assertTrue(accept_proposal(.001, .01, .1))
         self.assertFalse(accept_proposal(.1, .001, .5))
+
+    def test_mixed_shapes_in_every_optimizer(self):
+        target = torch.ones(16, 20, 3) * .8
+        target[4:12, 5:15] = torch.tensor([.9, .1, .2])
+        for method in ('adam', 'hill', 'anneal'):
+            scene, losses = fit(target, count=6, steps=20, method=method, shape_family='mixed')
+            root = ET.fromstring(scene.svg(200, 160))
+            self.assertEqual(len(root.findall('{http://www.w3.org/2000/svg}ellipse')), 2)
+            self.assertEqual(len(root.findall('{http://www.w3.org/2000/svg}polygon')), 2)
+            self.assertEqual(len(root.findall('{http://www.w3.org/2000/svg}rect')), 3)
+            self.assertTrue(torch.isfinite(scene(16, 20)).all())
+            self.assertLessEqual(min(losses), losses[0])
+        scene = ShapeScene(target, 6)
+        scene(16, 20).mean().backward()
+        self.assertIsNotNone(scene.vertices.grad)
+        self.assertGreater(float(scene.vertices.grad.abs().sum()), 0)
 
     def test_seed(self):
         target = torch.rand(8, 8, 3)

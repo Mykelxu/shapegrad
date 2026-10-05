@@ -12,6 +12,7 @@ class AppTests(unittest.TestCase):
         app.select_slider[0].set_value(48)
         app.slider[2].set_value(8)
         app.slider[3].set_value(8)
+        app.number_input[0].set_value(1)
         app.selectbox[0].select("Residual-guided search")
         app.button[0].click().run()
         self.assertFalse(app.exception)

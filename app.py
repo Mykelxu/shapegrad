@@ -10,6 +10,7 @@ import streamlit as st
 import torch
 from shapegrad import fit
 from reconstruct import reconstruct
+from reconstruct import VectorScene, Primitive
 import joblib
 from learn_proposals import CoarseRanker
 
@@ -22,12 +23,14 @@ with st.sidebar:
     st.header("Experiment")
     upload = st.file_uploader("Your image", type=["png", "jpg", "jpeg", "webp"])
     chosen = st.selectbox("Optimizer", list(methods))
+    family = st.selectbox("Shape family (all optimizers)", ["mixed", "triangle", "rectangle", "ellipse"])
     compare = st.checkbox("Compare baseline, learned, and heuristic")
-    count = st.slider("Shapes", 8, 256, 128, 8)
-    steps = st.slider("Adam / legacy search iterations", 25, 1000, 300, 25)
-    candidates = st.slider("Candidates per new shape", 8, 96, 48, 8)
-    refinements = st.slider("Refinement attempts per shape", 8, 96, 40, 8)
-    size = st.select_slider("Fit resolution (longest side)", options=[48, 64, 96, 128, 192, 256], value=192)
+    count = st.slider("Shapes", 8, 512, 128, 8)
+    steps = st.slider("Adam / global search iterations", 25, 5000, 600, 25)
+    candidates = st.slider("Candidates per search start", 8, 1024, 128, 8)
+    refinements = st.slider("Refinement attempts per start", 8, 512, 96, 8)
+    restarts = st.number_input("Search starts per shape", min_value=1, max_value=16, value=3)
+    size = st.select_slider("Fit resolution (longest side)", options=[48, 64, 96, 128, 192, 256], value=256)
     seed = st.number_input("Random seed", min_value=0, max_value=1000000, value=7)
     edge = st.slider("Edge emphasis", 0.0, 1.0, .2, .05)
     temperature = st.number_input("Annealing starting temperature", min_value=.00001, max_value=.1, value=.001, format="%.5f")
@@ -43,7 +46,7 @@ left, right = st.columns(2)
 left.image(source, caption="Source image", width="stretch")
 live = right.empty()
 live.info("Upload a photo or try the included landscape, then select Generate art.")
-st.caption("The recommended search adds one refined shape at a time. The learned method ranks proposals with an Extra Trees regressor trained on synthetic scenes. Legacy Adam uses gradients. Hill climbing accepts improvements. Annealing can accept worse proposals early to explore the search space. New search methods minimize pixel MSE; legacy methods use pixel + edge loss. Their loss values are not directly comparable.")
+st.caption("The recommended search adds one refined shape at a time. The learned method ranks proposals with an Extra Trees regressor trained on synthetic scenes. Adam uses gradients; all optimizers support the chosen shape family. Hill climbing accepts improvements. Annealing can accept worse proposals early to explore the search space. New search methods minimize pixel MSE; legacy methods use pixel + edge loss. Their loss values are not directly comparable.")
 if generate:
     image = source.copy()
     image.thumbnail((size, size))
@@ -68,22 +71,39 @@ if generate:
             status.write(f"{label} | loss {loss:.6f}")
         if method in ("greedy", "learned", "coarse"):
             model = joblib.load(model_path) if method == "learned" else (CoarseRanker() if method == "coarse" else None)
-            scene, history, evaluations = reconstruct(target.numpy(), count, candidates, refinements, int(seed), model, callback)
+            scene, history, evaluations = reconstruct(target.numpy(), count, candidates, refinements, int(seed), model, callback, restarts=int(restarts), shape_family=family)
         else:
-            scene, history = fit(target, count, steps, int(seed), edge, callback, method, temperature)
+            scene, history = fit(target, count, steps, int(seed), edge, callback, method, temperature, shape_family=family)
             evaluations = None
         elapsed = time.perf_counter() - started
         with torch.no_grad():
             array = scene.render(*target.shape[:2]) if method in ("greedy", "learned", "coarse") else scene(*target.shape[:2]).clamp(0, 1).numpy()
             preview = Image.fromarray((array.clip(0, 1) * 255).astype("uint8"))
+        # Re-render vector geometry rather than enlarging the fitting bitmap.
+        svg = scene.svg(*source.size)
+        output_width = round(1024 * source.width / max(source.size))
+        output_height = round(1024 * source.height / max(source.size))
+        if method in ('greedy', 'learned', 'coarse'):
+            export_scene = scene
+        else:
+            with torch.no_grad():
+                shapes = []
+                for i in range(count):
+                    c = scene.centers[i].sigmoid().numpy()
+                    r = (.005 + .495 * scene.radii[i].sigmoid()).numpy()
+                    kind = ('ellipse', 'rectangle', 'triangle')[int(scene.kinds[i])]
+                    points = scene.vertices[i].sigmoid().numpy() if kind == 'triangle' else np.stack([c-r, c+r])
+                    shapes.append(Primitive(kind, points, float(scene.opacity[i].sigmoid()), scene.colors[i].sigmoid().numpy()))
+                export_scene = VectorScene(scene.background.numpy(), shapes)
+        output_image = Image.fromarray((export_scene.render(max(1, output_height), max(1, output_width)).clip(0, 1)*255).astype('uint8'))
         png = BytesIO()
-        preview.save(png, format="PNG")
+        output_image.save(png, format="PNG")
         gif = BytesIO()
         frames.append(preview)
         frames[0].save(gif, format="GIF", save_all=True, append_images=frames[1:], duration=120, loop=0)
-        settings = dict(shapes=count, steps=steps, size=size, seed=int(seed), edge_weight=edge, temperature=temperature, method=method, candidates=candidates, refinements=refinements)
+        settings = dict(shapes=count, steps=steps, size=size, seed=int(seed), edge_weight=edge, temperature=temperature, method=method, candidates=candidates, refinements=refinements, restarts=int(restarts), shape_family=family)
         metrics = dict(exact_evaluations=evaluations, objective="pixel MSE" if method in ("greedy", "learned", "coarse") else "pixel + edge", settings=settings, initial_loss=history[0], best_loss=min(history), seconds=elapsed, loss_history=history)
-        results.append(dict(label=label, method=method, image=preview, png=png.getvalue(), gif=gif.getvalue(), svg=scene.svg(*source.size), metrics=metrics))
+        results.append(dict(label=label, method=method, image=preview, png=png.getvalue(), gif=gif.getvalue(), svg=svg, metrics=metrics))
     st.session_state["results"] = results
     progress.empty()
     status.empty()
@@ -97,7 +117,7 @@ if "results" in st.session_state:
     st.caption("For the three geometric methods, the horizontal axis counts shapes added. Learned and heuristic modes consider 4x the candidate pool but use the same number of full-resolution evaluations. Their feature overhead is included in elapsed time. Equal iteration counts are not equal compute budgets. Compare both loss and elapsed time; one image or seed is not a general benchmark.")
     for tab, result in zip(st.tabs([r["label"] for r in results]), results):
         with tab:
-            st.image(result["image"], caption="Best fitted scene", width=480)
+            st.image(result["svg"], caption="Vector output ? sharp at any display size", width="stretch")
             cols = st.columns(4)
             for col, label, key, extension, mime in zip(cols, ["SVG", "PNG", "Animation", "Metrics"], ["svg", "png", "gif", "metrics"], ["svg", "png", "gif", "json"], ["image/svg+xml", "image/png", "image/gif", "application/json"]):
                 data = json.dumps(result[key], indent=2) if key == "metrics" else result[key]

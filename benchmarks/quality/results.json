@@ -1,0 +1,41 @@
+{
+  "rows": [
+    {
+      "name": "small_search",
+      "count": 64,
+      "candidates": 48,
+      "refinements": 40,
+      "restarts": 1,
+      "seed": 7,
+      "fitting_size": 128,
+      "final_mse": 0.0027119868900626898,
+      "seconds": 6.97378410003148,
+      "evaluations": 5696
+    },
+    {
+      "name": "deeper_search",
+      "count": 64,
+      "candidates": 128,
+      "refinements": 96,
+      "restarts": 3,
+      "seed": 7,
+      "fitting_size": 128,
+      "final_mse": 0.0010303263552486897,
+      "seconds": 66.44852779991925,
+      "evaluations": 43200
+    },
+    {
+      "name": "more_shapes",
+      "count": 128,
+      "candidates": 128,
+      "refinements": 96,
+      "restarts": 3,
+      "seed": 7,
+      "fitting_size": 128,
+      "final_mse": 0.00037534747389145195,
+      "seconds": 121.83436580002308,
+      "evaluations": 86400
+    }
+  ],
+  "note": "One synthetic image and one seed; isolates budget effects, not a general benchmark or comparison with Primitive."
+}

@@ -28,14 +28,14 @@ def mask(shape, height, width, scale=1):
     return np.asarray(image, dtype=np.float32) / 255
 
 
-def proposal(target, canvas, rng):
+def proposal(target, canvas, rng, shape_family="mixed"):
     h, w = target.shape[:2]
     residual = ((target - canvas) ** 2).mean(-1)
     weights = residual.ravel() + 1e-5
     index = rng.choice(h * w, p=weights / weights.sum())
     center = np.array([(index % w + .5) / w, (index // w + .5) / h])
     radius = np.exp(rng.uniform(np.log(.015), np.log(.6), 2))
-    kind = rng.choice(KINDS)
+    kind = rng.choice(KINDS) if shape_family == "mixed" else shape_family
     if kind == "triangle":
         angles = rng.uniform(0, 2 * np.pi, 3)
         points = center + np.stack([np.cos(angles), np.sin(angles)], -1) * radius
@@ -45,7 +45,15 @@ def proposal(target, canvas, rng):
 
 
 def mutate(shape, rng, scale):
-    return Primitive(shape.kind, (shape.points + rng.normal(0, scale, shape.points.shape)).clip(-.25, 1.25), float(np.clip(shape.alpha + rng.normal(0, .08), .15, 1)))
+    points = shape.points.copy()
+    alpha = shape.alpha
+    if rng.random() < .85:
+        row = rng.integers(len(points))
+        axis = rng.integers(2)
+        points[row, axis] += rng.normal(0, scale)
+    else:
+        alpha = float(np.clip(alpha + rng.normal(0, .08), .15, 1))
+    return Primitive(shape.kind, points.clip(-.25, 1.25), alpha)
 
 
 def score(shape, target, canvas, antialias=1):
@@ -105,32 +113,41 @@ class VectorScene:
         return "\n".join(lines + ['</svg>'])
 
 
-def reconstruct(target, count=128, candidates=48, refinements=40, seed=7, model=None, callback=None):
+def reconstruct(target, count=128, candidates=48, refinements=40, seed=7, model=None, callback=None, restarts=1, shape_family="mixed"):
+    if min(count, candidates, refinements, restarts) < 1 or shape_family not in ('mixed', *KINDS):
+        raise ValueError('Invalid reconstruction settings')
     rng = np.random.default_rng(seed)
     background = target.mean((0, 1))
     canvas = np.broadcast_to(background, target.shape).copy()
     history, shapes = [float(np.mean((target - canvas) ** 2))], []
     evaluations = 0
     for step in range(count):
-        pool = [proposal(target, canvas, rng) for _ in range(candidates * (4 if model is not None else 1))]
-        if model is not None:
-            predictions = model.predict([features(p, target, canvas) for p in pool])
-            pool = [pool[i] for i in np.argsort(predictions)[-candidates:]]
         best, best_gain = None, -np.inf
-        for p in pool:
-            gain, _, _ = score(p, target, canvas)
+        for restart in range(restarts):
+            pool = [proposal(target, canvas, rng, shape_family) for _ in range(candidates * (4 if model is not None else 1))]
+            if model is not None:
+                predictions = model.predict([features(p, target, canvas) for p in pool])
+                pool = [pool[i] for i in np.argsort(predictions)[-candidates:]]
+            local, local_gain = None, -np.inf
+            for p in pool:
+                gain, _, _ = score(p, target, canvas)
+                evaluations += 1
+                if gain > local_gain:
+                    local, local_gain = p, gain
+            for iteration in range(refinements):
+                # Change one geometric coordinate, allowing precise edge adjustments.
+                p = mutate(local, rng, .08 * (.04 ** (iteration / max(1, refinements))))
+                gain, _, _ = score(p, target, canvas)
+                evaluations += 1
+                if gain > local_gain:
+                    local, local_gain = p, gain
+            # Rank restart winners with the same antialiased renderer used at commit.
+            gain, local_color, local_alpha = score(local, target, canvas, antialias=3)
             evaluations += 1
             if gain > best_gain:
-                best, best_gain = p, gain
-        for iteration in range(refinements):
-            p = mutate(best, rng, .08 * (.08 ** (iteration / max(1, refinements))))
-            gain, _, _ = score(p, target, canvas)
-            evaluations += 1
-            if gain > best_gain:
-                best, best_gain = p, gain
-        gain, color, alpha = score(best, target, canvas, antialias=3)
-        evaluations += 1
-        if gain > 0:
+                best, best_gain = local, gain
+                color, alpha = local_color, local_alpha
+        if best_gain > 0:
             best.color = color
             shapes.append(best)
             canvas = canvas * (1 - alpha[..., None]) + alpha[..., None] * color

@@ -11,7 +11,7 @@ from torch import nn
 
 
 class ShapeScene(nn.Module):
-    def __init__(self, target, count=64, seed=7):
+    def __init__(self, target, count=64, seed=7, shape_family="mixed"):
         super().__init__()
         generator = torch.Generator(device=target.device).manual_seed(seed)
         centers = torch.rand(count, 2, generator=generator, device=target.device)
@@ -22,6 +22,13 @@ class ShapeScene(nn.Module):
         self.radii = nn.Parameter(torch.full_like(centers, -2.0))
         self.colors = nn.Parameter(torch.logit(colors))
         self.opacity = nn.Parameter(torch.zeros(count, device=target.device))
+        if shape_family not in ('mixed', 'ellipse', 'rectangle', 'triangle'):
+            raise ValueError('Unknown shape family')
+        kinds = torch.arange(count, device=target.device) % 3 if shape_family == 'mixed' else torch.full((count,), ('ellipse', 'rectangle', 'triangle').index(shape_family), device=target.device)
+        self.register_buffer('kinds', kinds)
+        offsets = torch.tensor([[-.10, .08], [.10, .08], [0., -.12]], device=target.device)
+        vertices = (centers[:, None, :] + offsets).clamp(.01, .99)
+        self.vertices = nn.Parameter(torch.logit(vertices))
         self.register_buffer('background', target.mean((0, 1)))
 
     def forward(self, height, width, sharpness=60):
@@ -31,11 +38,25 @@ class ShapeScene(nn.Module):
             indexing='ij')
         grid = torch.stack((x, y), -1)
         canvas = self.background.expand(height, width, 3)
-        for center, radius, color, opacity in zip(
+        for index, (center, radius, color, opacity) in enumerate(zip(
                 self.centers.sigmoid(), .005 + .495 * self.radii.sigmoid(),
-                self.colors.sigmoid(), self.opacity.sigmoid()):
-            distance = (((grid - center) / radius) ** 2).sum(-1)
-            alpha = (torch.sigmoid((1 - distance) * sharpness) * opacity)[..., None]
+                self.colors.sigmoid(), self.opacity.sigmoid())):
+            kind = int(self.kinds[index])
+            if kind == 0:
+                distance = (((grid - center) / radius) ** 2).sum(-1).clamp_min(1e-8).sqrt()
+                coverage = torch.sigmoid((1 - distance) * radius.min() * sharpness * 3)
+            elif kind == 1:
+                distance = (radius - (grid - center).abs()).amin(-1)
+                coverage = torch.sigmoid(distance * sharpness * 3)
+            else:
+                points = self.vertices[index].sigmoid()
+                edges = points.roll(-1, 0) - points
+                area = edges[0, 0] * edges[1, 1] - edges[0, 1] * edges[1, 0]
+                orientation = torch.where(area >= 0, 1., -1.)
+                delta = grid[..., None, :] - points
+                distances = (edges[:, 0] * delta[..., 1] - edges[:, 1] * delta[..., 0]) * orientation / edges.norm(dim=-1).clamp_min(1e-5)
+                coverage = torch.sigmoid(distances.amin(-1) * sharpness * 3)
+            alpha = (coverage * opacity)[..., None]
             canvas = canvas * (1 - alpha) + color * alpha
         return canvas
 
@@ -45,9 +66,17 @@ class ShapeScene(nn.Module):
         lines = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
                  f'<rect width="100%" height="100%" fill="{rgb(self.background)}"/>']
         with torch.no_grad():
-            for c, r, color, a in zip(self.centers.sigmoid(),
-                    .005 + .495 * self.radii.sigmoid(), self.colors.sigmoid(), self.opacity.sigmoid()):
-                lines.append(f'<ellipse cx="{float(c[0])*width:.3f}" cy="{float(c[1])*height:.3f}" rx="{float(r[0])*width:.3f}" ry="{float(r[1])*height:.3f}" fill="{rgb(color)}" fill-opacity="{float(a):.5f}"/>')
+            for index, (c, r, color, a) in enumerate(zip(self.centers.sigmoid(),
+                    .005 + .495 * self.radii.sigmoid(), self.colors.sigmoid(), self.opacity.sigmoid())):
+                style = f'fill="{rgb(color)}" fill-opacity="{float(a):.5f}"'
+                kind = int(self.kinds[index])
+                if kind == 0:
+                    lines.append(f'<ellipse cx="{float(c[0])*width:.3f}" cy="{float(c[1])*height:.3f}" rx="{float(r[0])*width:.3f}" ry="{float(r[1])*height:.3f}" {style}/>')
+                elif kind == 1:
+                    lines.append(f'<rect x="{float(c[0]-r[0])*width:.3f}" y="{float(c[1]-r[1])*height:.3f}" width="{float(r[0])*width*2:.3f}" height="{float(r[1])*height*2:.3f}" {style}/>')
+                else:
+                    coords = ' '.join(f'{float(p[0])*width:.3f},{float(p[1])*height:.3f}' for p in self.vertices[index].sigmoid())
+                    lines.append(f'<polygon points="{coords}" {style}/>')
         return '\n'.join(lines + ['</svg>'])
 
 
@@ -64,12 +93,12 @@ def accept_proposal(delta, temperature, random_value):
 
 
 def fit(target, count=64, steps=500, seed=7, edge_weight=.2, callback=None,
-        method='adam', temperature=.001):
+        method='adam', temperature=.001, shape_family='mixed'):
     if method not in ('adam', 'hill', 'anneal'):
         raise ValueError('Unknown optimization method')
     if min(count, steps) < 1 or edge_weight < 0 or temperature <= 0:
         raise ValueError('Invalid fit settings')
-    scene = ShapeScene(target, count, seed)
+    scene = ShapeScene(target, count, seed, shape_family)
     generator = torch.Generator(device=target.device).manual_seed(seed + 1)
     optimizer = torch.optim.Adam(scene.parameters(), lr=.035)
     history = []
@@ -124,6 +153,7 @@ def main():
     parser.add_argument('--edge-weight', type=float, default=.2)
     parser.add_argument('--device', choices=['cpu', 'cuda'], default='cpu')
     parser.add_argument('--gif', action='store_true')
+    parser.add_argument('--shape-family', choices=['mixed', 'ellipse', 'rectangle', 'triangle'], default='mixed')
     parser.add_argument('--method', choices=['adam', 'hill', 'anneal'], default='adam')
     args = parser.parse_args()
     if min(args.shapes, args.steps, args.size) < 1 or args.edge_weight < 0:
@@ -141,7 +171,7 @@ def main():
         print(f'{step:4d}/{args.steps} loss={loss:.6f}')
         if args.gif:
             frames.append(Image.fromarray((rendered.clamp(0, 1).cpu().numpy()*255).astype('uint8')))
-    scene, history = fit(target, args.shapes, args.steps, args.seed, args.edge_weight, progress, method=args.method)
+    scene, history = fit(target, args.shapes, args.steps, args.seed, args.edge_weight, progress, method=args.method, shape_family=args.shape_family)
     with torch.no_grad():
         rendered = scene(*target.shape[:2]).cpu().numpy()
     result = Image.fromarray((rendered.clip(0, 1)*255).astype('uint8'))
