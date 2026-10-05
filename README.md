@@ -6,6 +6,19 @@ Instead of searching for one new shape at a time, ShapeGrad jointly optimizes po
 
 This is per-image gradient-based optimization and is an original educational implementation of an established idea.
 
+## Local UI
+
+```sh
+pip install -r requirements.txt
+python -m streamlit run app.py
+```
+
+Open http://localhost:8501. Upload an image or use the bundled example, select Adam, hill climbing, or simulated annealing, and download SVG, PNG, GIF, and JSON metrics. The comparison mode runs all three from identical initial parameters and plots their loss histories with elapsed times. This is a local website; no hosted deployment is configured.
+
+Hill climbing mutates one ellipse and accepts only improvements. Simulated annealing uses the same proposals with a Metropolis acceptance rule and exponential cooling. Adam jointly updates all shapes using gradients. Equal iteration counts are not equal compute budgets. These optimizers are search methods; no trained tree model is included.
+
+A resume-friendly next experiment is a trained tree surrogate that ranks shape proposals, evaluated against these baselines on held-out images and multiple seeds. That would add supervised learning with measurable evidence rather than just an AI label.
+
 ## Quick start
 
 ```sh
@@ -43,7 +56,7 @@ Only axis-aligned ellipses are implemented. Hard SVG boundaries differ slightly 
 - Add user-supplied importance masks to spend detail on subjects.
 - Compare pixel loss with pretrained perceptual features.
 - Train a shape-prediction network using fitted scenes as supervision.
-- Add temporal consistency for video and a browser playground.
+- Add temporal consistency for video and a hosted browser playground.
 
 These are planned experiments, not implemented features.
 
