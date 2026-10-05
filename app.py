@@ -25,17 +25,18 @@ with st.sidebar:
     chosen = st.selectbox("Optimizer", list(methods))
     family = st.selectbox("Shape family (all optimizers)", ["mixed", "triangle", "rectangle", "ellipse"])
     compare = st.checkbox("Compare baseline, learned, and heuristic")
+    coherent = st.checkbox("Coherent triangle style", value=False, help="For sequential methods: triangles only, consistent half opacity, and no angles below 15 degrees. A style experiment; it does not guarantee lower pixel error.")
     count = st.slider("Shapes", 8, 512, 128, 8)
     steps = st.slider("Adam / global search iterations", 25, 5000, 600, 25)
-    candidates = st.slider("Candidates per search start", 8, 1024, 128, 8)
+    candidates = st.slider("Candidates per search start", 8, 1024, 256, 8)
     refinements = st.slider("Refinement attempts per start", 8, 512, 96, 8)
-    restarts = st.number_input("Search starts per shape", min_value=1, max_value=16, value=3)
+    restarts = st.number_input("Search starts per shape", min_value=1, max_value=16, value=4)
     size = st.select_slider("Fit resolution (longest side)", options=[48, 64, 96, 128, 192, 256], value=256)
     seed = st.number_input("Random seed", min_value=0, max_value=1000000, value=7)
     edge = st.slider("Edge emphasis", 0.0, 1.0, .2, .05)
     temperature = st.number_input("Annealing starting temperature", min_value=.00001, max_value=.1, value=.001, format="%.5f")
     generate = st.button("Generate art", type="primary")
-    st.caption("CPU runs. Start small; more shapes and pixels take longer.")
+    st.caption("CPU search with regional scoring. Increase candidates and search starts to spend more time refining each shape.")
 try:
     source = ImageOps.exif_transpose(Image.open(upload if upload else Path(__file__).parent / "examples/target.png")).convert("RGBA")
     source = Image.alpha_composite(Image.new("RGBA", source.size, "white"), source).convert("RGB")
@@ -71,7 +72,8 @@ if generate:
             status.write(f"{label} | loss {loss:.6f}")
         if method in ("greedy", "learned", "coarse"):
             model = joblib.load(model_path) if method == "learned" else (CoarseRanker() if method == "coarse" else None)
-            scene, history, evaluations = reconstruct(target.numpy(), count, candidates, refinements, int(seed), model, callback, restarts=int(restarts), shape_family=family)
+            effective_family = 'triangle' if coherent else family
+            scene, history, evaluations = reconstruct(target.numpy(), count, candidates, refinements, int(seed), model, callback, restarts=int(restarts), shape_family=effective_family, min_triangle_angle=15 if coherent else 0, fixed_opacity=128/255 if coherent else None)
         else:
             scene, history = fit(target, count, steps, int(seed), edge, callback, method, temperature, shape_family=family)
             evaluations = None
@@ -101,7 +103,7 @@ if generate:
         gif = BytesIO()
         frames.append(preview)
         frames[0].save(gif, format="GIF", save_all=True, append_images=frames[1:], duration=120, loop=0)
-        settings = dict(shapes=count, steps=steps, size=size, seed=int(seed), edge_weight=edge, temperature=temperature, method=method, candidates=candidates, refinements=refinements, restarts=int(restarts), shape_family=family)
+        settings = dict(shapes=count, steps=steps, size=size, seed=int(seed), edge_weight=edge, temperature=temperature, method=method, candidates=candidates, refinements=refinements, restarts=int(restarts), shape_family=effective_family if method in ('greedy', 'learned', 'coarse') else family, coherent_style=coherent and method in ('greedy', 'learned', 'coarse'), scoring_backend='regional' if method in ('greedy', 'learned', 'coarse') else 'torch')
         metrics = dict(exact_evaluations=evaluations, objective="pixel MSE" if method in ("greedy", "learned", "coarse") else "pixel + edge", settings=settings, initial_loss=history[0], best_loss=min(history), seconds=elapsed, loss_history=history)
         results.append(dict(label=label, method=method, image=preview, png=png.getvalue(), gif=gif.getvalue(), svg=svg, metrics=metrics))
     st.session_state["results"] = results

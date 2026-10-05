@@ -26,7 +26,9 @@ The locally trained model and dataset are ignored by Git. Training regenerates t
 5. Recheck the candidate with supersampled antialiasing and commit it only if MSE improves.
 6. Repeat, freezing accepted shapes. Final previews display SVG directly, and PNG exports re-render the geometry at a 1,024-pixel longest side. GIFs retain the fitting resolution. Raster previews and SVG use the same geometry and layer order, though rasterizer boundary conventions can differ slightly.
 
-The UI default uses 128 shape additions, three independent search starts per shape, 128 candidates and 96 refinement attempts per start, and 256-pixel fitting resolution. The function defaults stay smaller for quick scripted experiments. Search starts are refined independently, then their winners are compared with antialiasing. Coordinate-wise mutations allow precise edge adjustments. More detailed photographs may need 256 shapes and larger budgets. This remains an approximation; tiny text and fine textures are difficult.
+The UI default uses 128 shape additions, four independent search starts per shape, 256 candidates and 96 refinement attempts per start, and 256-pixel fitting resolution. The function defaults stay smaller for quick scripted experiments. Search starts are refined independently, then their winners are compared with antialiasing. Coordinate-wise mutations allow precise edge adjustments. More detailed photographs may need 256 shapes and larger budgets. This remains an approximation; tiny text and fine textures are difficult.
+
+The optional **Coherent triangle style** uses triangles only, fixed opacity of 128/255, and a minimum triangle angle of 15 degrees. It avoids thin slivers and mixed-shape silhouettes. It applies to the three sequential methods and is a visual style experiment, not a guarantee of lower pixel error. Pixel MSE does not directly measure edge continuity or perceptual coherence.
 
 ![Improved reconstruction](examples/improved.png)
 
@@ -34,7 +36,7 @@ See [editable output](examples/improved.svg) and [example metrics](examples/impr
 
 ## Why Primitive still has a stronger search
 
-The [original search code](https://github.com/fogleman/primitive/blob/master/primitive/model.go) requests 1,000 random candidates per search start, an age setting of 100 for hill climbing, and at least 16 starts distributed across workers. Its age setting is a stopping criterion, not a fixed count of 100 mutations. That is at least 16,000 initial candidate evaluations per added shape, before refinement. Our new UI defaults use 384 initial candidates per shape plus refinement, so they remain much cheaper.
+The [original search code](https://github.com/fogleman/primitive/blob/master/primitive/model.go) requests 1,000 random candidates per search start, an age setting of 100 for hill climbing, and at least 16 starts distributed across workers. Its age setting is a stopping criterion, not a fixed count of 100 mutations. That is at least 16,000 initial candidate evaluations per added shape, before refinement. Our new UI defaults use 1,024 initial candidates per shape plus refinement; the previous defaults used 384. We still have a much smaller budget and one search worker. Primitive uses parallel workers and specialized scanline loops.
 
 The [original CLI](https://github.com/fogleman/primitive/blob/master/main.go) fits at 256 pixels and renders at 1,024 pixels. We now separate fitting from output resolution too. Larger output makes boundaries sharp; more search and more shapes are what improve reconstruction detail. More Adam iterations do not substitute for candidate search in the sequential methods.
 
@@ -49,6 +51,39 @@ Run `python quality_ablation.py` to isolate search-budget and shape-count effect
 Deeper search reduced error 62% at fixed shape count; doubling the shapes reduced it 86% relative to small search. Fitting took about 7, 66, and 122 seconds respectively, with other local checks running concurrently. Use the JSON for exact settings and timings. These are pixel-error improvements, not perceptual ratings.
 
 ![Deeper search with 128 shapes](benchmarks/quality/more_shapes.png)
+
+## Execution optimization with unchanged search results
+
+The sequential methods now cache the residual sampling distribution, existing canvas error, and 12-pixel feature images per shape addition. Candidate arithmetic is restricted to the exact nonzero raster bounds, using reusable buffers. Full-image reduction order is deliberately retained: changing floating-point sums changed tie-breaking in an earlier experiment. Every committed shape is still checked with the original full-resolution antialiased scorer.
+
+`reconstruct(..., backend='reference')` runs the original dense scorer. `backend='cached'` isolates caching, and `backend='regional'` is the default optimized implementation. The number of candidates and refinements is unchanged across these backends; there is no resolution reduction or skipped scoring.
+
+| Workload | Reference mean seconds | Regional mean seconds | Speedup |
+| --- | ---: | ---: | ---: |
+| Search: 3 synthetic images, 2 seeds, 16 shapes at 192 pixels | 6.93 | 2.44 | 2.83x |
+| Learned ranking: 3 synthetic images, 8 shapes at 192 pixels | 2.39 | 0.97 | 2.45x |
+
+All nine regional runs reproduced the reference rendered pixels exactly, with identical losses and evaluation counts in the tested environment. This is tested equivalence, not a cross-platform bitwise guarantee. The UI now spends some of the saved time on more search: four starts with 256 candidates instead of three starts with 128. Default UI wall time is not the same-budget benchmark above.
+
+Run `python speed_benchmark.py`; raw measurements are in [speed results](benchmarks/speed/results.json). Timings exclude final PNG rendering. The CPU search is still single-worker; this optimization does not claim a GPU or multicore implementation.
+
+## Direct comparison with the original
+
+We built and ran the original `fogleman/primitive` executable against the bundled landscape with 64 shapes, a 128-pixel fitting size, and a 256-pixel output. Primitive used two workers and fixed opacity; ShapeGrad used one worker, seed 7, and variable opacity. Candidate budgets and rasterizers differ.
+
+| Method | Candidate evaluations | Seconds | Output MSE |
+| --- | ---: | ---: | ---: |
+| Original Primitive, triangles | 1,272,300 | 6.09 | 0.003912 |
+| Original Primitive, mixed types | 1,224,609 | 11.00 | 0.002402 |
+| ShapeGrad, mixed types | 43,200 | 26.97 | 0.002359 |
+| ShapeGrad, triangles | 43,200 | 24.32 | 0.002483 |
+
+This is a single unseeded upstream run, not a general performance ranking. Even after the regional optimization, the Go implementation evaluated roughly 28–29 times as many candidates and was faster. Its triangle-only image looks more cohesive; its [triangle implementation](https://github.com/fogleman/primitive/blob/master/primitive/triangle.go) rejects angles below 15 degrees. ShapeGrad's similar or lower MSE here does not imply better aesthetics.
+
+![Original Primitive triangles](benchmarks/primitive/primitive_triangles.png)
+![ShapeGrad mixed](benchmarks/primitive/shapegrad_mixed.png)
+
+Run `go install github.com/fogleman/primitive@latest`, then `python compare_primitive.py` on Windows. The script records the installed upstream build/dependencies, commands, outputs, and counts in [comparison results](benchmarks/primitive/results.json). Upstream code is not bundled. Comparison timings were recorded with some local validation running concurrently, so treat them as indicative, not isolated machine benchmarks.
 
 ## The ML component
 

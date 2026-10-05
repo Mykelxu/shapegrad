@@ -1,0 +1,312 @@
+{
+  "rows": [
+    {
+      "image_seed": 2000,
+      "seed": 7,
+      "backend": "reference",
+      "mode": "search",
+      "seconds": 7.000937899807468,
+      "mse": 0.014244007878005505,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2000,
+      "seed": 7,
+      "backend": "cached",
+      "mode": "search",
+      "seconds": 5.686341600026935,
+      "mse": 0.014244007878005505,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2000,
+      "seed": 7,
+      "backend": "regional",
+      "mode": "search",
+      "seconds": 2.48923740000464,
+      "mse": 0.014244007878005505,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2000,
+      "seed": 19,
+      "backend": "reference",
+      "mode": "search",
+      "seconds": 7.314742400078103,
+      "mse": 0.01569191925227642,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2000,
+      "seed": 19,
+      "backend": "cached",
+      "mode": "search",
+      "seconds": 6.310068000108004,
+      "mse": 0.01569191925227642,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2000,
+      "seed": 19,
+      "backend": "regional",
+      "mode": "search",
+      "seconds": 2.560548699926585,
+      "mse": 0.01569191925227642,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2000,
+      "seed": 7,
+      "backend": "reference",
+      "mode": "learned",
+      "seconds": 2.649316299939528,
+      "mse": 0.02351805940270424,
+      "evaluations": 264,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2000,
+      "seed": 7,
+      "backend": "cached",
+      "mode": "learned",
+      "seconds": 1.6333468998782337,
+      "mse": 0.02351805940270424,
+      "evaluations": 264,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2000,
+      "seed": 7,
+      "backend": "regional",
+      "mode": "learned",
+      "seconds": 1.060039599891752,
+      "mse": 0.02351805940270424,
+      "evaluations": 264,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2001,
+      "seed": 7,
+      "backend": "reference",
+      "mode": "search",
+      "seconds": 7.402258299989626,
+      "mse": 0.022648997604846954,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2001,
+      "seed": 7,
+      "backend": "cached",
+      "mode": "search",
+      "seconds": 6.946838199859485,
+      "mse": 0.022648997604846954,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2001,
+      "seed": 7,
+      "backend": "regional",
+      "mode": "search",
+      "seconds": 2.675212200032547,
+      "mse": 0.022648997604846954,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2001,
+      "seed": 19,
+      "backend": "reference",
+      "mode": "search",
+      "seconds": 7.655079999938607,
+      "mse": 0.021842453628778458,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2001,
+      "seed": 19,
+      "backend": "cached",
+      "mode": "search",
+      "seconds": 5.807830099947751,
+      "mse": 0.021842453628778458,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2001,
+      "seed": 19,
+      "backend": "regional",
+      "mode": "search",
+      "seconds": 2.543109399965033,
+      "mse": 0.021842453628778458,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2001,
+      "seed": 7,
+      "backend": "reference",
+      "mode": "learned",
+      "seconds": 2.136715800035745,
+      "mse": 0.040124911814928055,
+      "evaluations": 264,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2001,
+      "seed": 7,
+      "backend": "cached",
+      "mode": "learned",
+      "seconds": 1.4239566000178456,
+      "mse": 0.040124911814928055,
+      "evaluations": 264,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2001,
+      "seed": 7,
+      "backend": "regional",
+      "mode": "learned",
+      "seconds": 0.97741309995763,
+      "mse": 0.040124911814928055,
+      "evaluations": 264,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2002,
+      "seed": 7,
+      "backend": "reference",
+      "mode": "search",
+      "seconds": 6.501742699882016,
+      "mse": 0.01684488169848919,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2002,
+      "seed": 7,
+      "backend": "cached",
+      "mode": "search",
+      "seconds": 5.416703399969265,
+      "mse": 0.01684488169848919,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2002,
+      "seed": 7,
+      "backend": "regional",
+      "mode": "search",
+      "seconds": 2.2014144000131637,
+      "mse": 0.01684488169848919,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2002,
+      "seed": 19,
+      "backend": "reference",
+      "mode": "search",
+      "seconds": 5.688819200033322,
+      "mse": 0.014197210781276226,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2002,
+      "seed": 19,
+      "backend": "cached",
+      "mode": "search",
+      "seconds": 4.987319199834019,
+      "mse": 0.014197210781276226,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2002,
+      "seed": 19,
+      "backend": "regional",
+      "mode": "search",
+      "seconds": 2.195373799884692,
+      "mse": 0.014197210781276226,
+      "evaluations": 1424,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2002,
+      "seed": 7,
+      "backend": "reference",
+      "mode": "learned",
+      "seconds": 2.374478799989447,
+      "mse": 0.024950550869107246,
+      "evaluations": 264,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2002,
+      "seed": 7,
+      "backend": "cached",
+      "mode": "learned",
+      "seconds": 1.4835417000576854,
+      "mse": 0.024950550869107246,
+      "evaluations": 264,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    },
+    {
+      "image_seed": 2002,
+      "seed": 7,
+      "backend": "regional",
+      "mode": "learned",
+      "seconds": 0.8807163001038134,
+      "mse": 0.024950550869107246,
+      "evaluations": 264,
+      "max_pixel_difference": 0.0,
+      "mean_pixel_difference": 0.0
+    }
+  ],
+  "settings": {
+    "resolution": 192,
+    "search_shapes": 16,
+    "candidates": 48,
+    "refinements": 40,
+    "learned_shapes": 8,
+    "learned_candidates": 16,
+    "learned_refinements": 16,
+    "restarts": 1
+  },
+  "note": "Same proposal budget and seed. Both optimized scorers retain the dense reduction layout to preserve tie-breaking. All optimized runs reproduced reference pixels exactly on this machine. Cross-platform bitwise equivalence is not promised. Timings exclude final export rendering. Synthetic workload; results are not a Primitive speed comparison."
+}

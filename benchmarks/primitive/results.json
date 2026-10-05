@@ -1,0 +1,88 @@
+{
+  "rows": [
+    {
+      "method": "primitive_triangles",
+      "seconds": 6.090010599931702,
+      "output_mse": 0.003911536652594805,
+      "candidate_evaluations": 1272300,
+      "workers": 2,
+      "opacity": 0.5019607843137255,
+      "shape_additions": 64,
+      "command": [
+        "primitive.exe",
+        "-i",
+        "examples/target.png",
+        "-o",
+        "benchmarks/primitive/primitive_triangles.png",
+        "-o",
+        "benchmarks/primitive/primitive_triangles.svg",
+        "-n",
+        "64",
+        "-m",
+        "1",
+        "-r",
+        "128",
+        "-s",
+        "256",
+        "-j",
+        "2",
+        "-v"
+      ]
+    },
+    {
+      "method": "primitive_mixed",
+      "seconds": 10.999309600098059,
+      "output_mse": 0.002402103506028652,
+      "candidate_evaluations": 1224609,
+      "workers": 2,
+      "opacity": 0.5019607843137255,
+      "shape_additions": 64,
+      "command": [
+        "primitive.exe",
+        "-i",
+        "examples/target.png",
+        "-o",
+        "benchmarks/primitive/primitive_mixed.png",
+        "-o",
+        "benchmarks/primitive/primitive_mixed.svg",
+        "-n",
+        "64",
+        "-m",
+        "0",
+        "-r",
+        "128",
+        "-s",
+        "256",
+        "-j",
+        "2",
+        "-v"
+      ]
+    },
+    {
+      "method": "shapegrad_mixed",
+      "seconds": 26.968697299947962,
+      "output_mse": 0.002359116217121482,
+      "fitting_mse": 0.0010303263552486897,
+      "candidate_evaluations": 43200,
+      "workers": 1,
+      "opacity": "variable",
+      "shape_additions": 64
+    },
+    {
+      "method": "shapegrad_triangle",
+      "seconds": 24.316802999936044,
+      "output_mse": 0.0024832519702613354,
+      "fitting_mse": 0.0010097308550029993,
+      "candidate_evaluations": 43200,
+      "workers": 1,
+      "opacity": "variable",
+      "shape_additions": 64
+    }
+  ],
+  "fitting_longest_side": 128,
+  "output_longest_side": 256,
+  "note": "Single synthetic target. Same nominal fitting/output dimensions and shape count, different scoring budgets and rasterizers. Primitive is unseeded and uses fixed opacity; ShapeGrad seed=7 uses variable opacity. Not equal compute or a general benchmark.",
+  "upstream": "https://github.com/fogleman/primitive",
+  "build": "C:\\Users\\RiceC\\go\\bin\\primitive.exe: go1.26.3\n\tpath\tgithub.com/fogleman/primitive\n\tmod\tgithub.com/fogleman/primitive\tv0.0.0-20200504002142-0373c216458b\th1:4an+AbUbniObK4so1UOHzpmmrrY0A3erXeb1pkRx4UQ=\n\tdep\tgithub.com/fogleman/gg\tv1.3.0\th1:/7zJX8F6AaYQc57WQCyN9cAIz+4bCJGO9B+dyW29am8=\n\tdep\tgithub.com/golang/freetype\tv0.0.0-20170609003504-e2365dfdc4a0\th1:DACJavvAHhabrF08vX0COfcOBJRhZ8lUbR+ZWIs0Y5g=\n\tdep\tgithub.com/nfnt/resize\tv0.0.0-20180221191011-83c6a9932646\th1:zYyBkD/k9seD2A7fsi6Oo2LfFZAehjjQMERAvZLEDnQ=\n\tdep\tgolang.org/x/image\tv0.46.0\th1:b1+oYj0Jbp6K5MDT4i4/eZpYlk3V8SJhhDKh6LBHAyQ=\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\tDefaultGODEBUG=asynctimerchan=1,containermaxprocs=0,cryptocustomrand=1,decoratemappings=0,gotestjsonbuildtext=1,gotypesalias=0,httpcookiemaxnum=0,httplaxcontentlength=1,httpmuxgo121=1,httpservecontentkeepheaders=1,multipathtcp=0,panicnil=1,randseednop=0,rsa1024min=0,tls10server=1,tls3des=1,tlsmlkem=0,tlsrsakex=1,tlssecpmlkem=0,tlssha1=1,tlsunsafeekm=1,updatemaxprocs=0,urlmaxqueryparams=0,urlstrictcolons=0,winreadlinkvolume=0,winsymlink=0,x509keypairleaf=0,x509negativeserial=1,x509rsacrt=0,x509sha256skid=0,x509usepolicies=0\n\tbuild\tCGO_ENABLED=1\n\tbuild\tCGO_CFLAGS=\n\tbuild\tCGO_CPPFLAGS=\n\tbuild\tCGO_CXXFLAGS=\n\tbuild\tCGO_LDFLAGS=\n\tbuild\tGOARCH=amd64\n\tbuild\tGOOS=windows\n\tbuild\tGOAMD64=v1\n",
+  "command_note": "Recorded command arguments use relative paths here; actual execution used equivalent resolved absolute paths."
+}
