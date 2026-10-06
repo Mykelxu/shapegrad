@@ -1,6 +1,6 @@
 # ShapeGrad
 
-Image-to-SVG reconstruction with residual-guided geometric search and a learned tree model for ranking shape proposals. Includes a local experiment UI, reproducible training pipeline, and held-out benchmark with a non-ML ablation.
+Image-to-SVG reconstruction with contour-guided initialization, unsupervised color clustering, and joint PyTorch refinement. Compare connected vector regions with residual-guided primitive search and a supervised tree proposal ranker in a local experiment UI.
 
 ## Run locally
 
@@ -9,15 +9,61 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate
 # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-python learn_proposals.py --benchmark
 python -m streamlit run app.py
 ```
 
-Open http://localhost:8501. Upload an image or try the example. **Residual-guided search** is the default. Compare it with **Learned tree proposal ranker** and **Coarse heuristic (no ML)**. Download SVG, PNG, GIF, and metrics. The site runs locally; no hosted deployment is configured.
+Open http://localhost:8501. **Contour-guided regions** is the default. Upload a picture or select the built-in landscape or portrait. Download SVG, PNG, GIF, and metrics. The table reports pixel MSE, structural similarity (SSIM), time, and SVG size from the fitted scene geometry. The site runs locally; no hosted deployment is configured.
+
+Train the optional supervised proposal ranker before selecting it or the four-method comparison:
+
+```sh
+python learn_proposals.py --benchmark
+```
 
 The locally trained model and dataset are ignored by Git. Training regenerates them in `models/`; the model card is included in the repository. Train before selecting learned mode. The UI loads only the project's local model artifact.
 
-## How reconstruction works
+## Contour-guided reconstruction
+
+The new mode follows the input image instead of placing unrelated shapes:
+
+1. Fit a MiniBatchKMeans color palette in CIE Lab space. Merge nearly identical centers to avoid splitting flat colors into artificial fragments.
+2. Clean isolated label noise with a categorical majority filter, then find connected components and trace their boundaries.
+3. Simplify those boundaries into closed polygons. Compound SVG paths preserve disconnected details and holes for each palette color, rather than discarding small regions to meet a layer budget.
+4. Jointly optimize palette colors, background, and a shared smooth deformation field using PyTorch autograd. The shared field moves common boundary locations consistently rather than moving neighboring shapes independently.
+5. Use pixel, edge, differentiable SSIM, and deformation-smoothness losses. Accept a refinement checkpoint only if the re-rendered vector scene has lower MSE and no lower SSIM than the currently accepted scene.
+
+The contour UI defaults are a 24-color palette budget, up to 128 foreground layers, 256-pixel fitting resolution, and 80 refinement steps. Similar colors can merge, so the actual layer count is often smaller. Compound paths can have many vertices: layer count alone is not a complexity measure. The field moves boundaries by up to two fitting pixels and densifies long edges when exporting a nonlinear deformation. Final PNGs are rendered at a 1,024-pixel longest side.
+
+The palette fit is unsupervised ML. Joint refinement is per-image differentiable optimization, not a pretrained generative network. The supervised proposal ranker remains a separate comparison method. No pretrained perceptual network or text-to-image model is included.
+
+```sh
+python contour_model.py photo.jpg --palette 32 --layers 128 --steps 80 --size 256
+python contour_benchmark.py
+```
+
+Increase the palette budget for more tonal detail. Increase fitting resolution to retain smaller features. Flat fills still simplify textures, and the majority filter can remove very small details. Boundaries are polygonal; Bezier curves are not implemented yet.
+
+### Initial quality comparison
+
+Two examples at 128-pixel fitting resolution; contour mode uses a 24-color palette and 40 refinement steps. Search uses 128 shape additions, 48 candidates, 40 mutations per shape, and one search start. These are different representations and compute budgets, not an equal-complexity benchmark.
+
+| Image / method | Pixel MSE â†“ | SSIM â†‘ | Seconds | SVG bytes |
+| --- | ---: | ---: | ---: | ---: |
+| Landscape, geometric search | 0.001197 | 0.919 | 4.00 | 13,605 |
+| Landscape, contour refinement | 0.001101 | 0.952 | 2.41 | 3,490 |
+| Portrait, geometric search | 0.013846 | 0.535 | 6.19 | 13,692 |
+| Portrait, contour initialization | 0.011230 | 0.661 | 0.42 | 53,457 |
+| Portrait, contour refinement | 0.011230 | 0.661 | 1.95 | 53,457 |
+
+The portrait's refinements were rejected by the quality guard, so its initialized scene was retained. It reduces MSE about 19% versus this search baseline and improves SSIM, but uses substantially more contour vertices and a larger SVG. Landscape refinement improves both metrics with a smaller SVG. This is a two-example demonstration, not evidence of general superiority over Primitive or all photographs.
+
+Raw metrics, initializer/refiner ablations, outputs, and settings: [contour benchmark](benchmarks/contours/results.json).
+
+![Contour portrait](benchmarks/contours/astronaut-contour_refined.png)
+
+The portrait source is NASA's photograph of Eileen Collins, provided by `skimage.data.astronaut`, which is [documented as public domain](https://scikit-image.org/docs/stable/api/skimage.data.html#skimage.data.astronaut). All other example artwork is generated locally.
+
+## Residual-guided primitive reconstruction
 
 1. Start with the image's mean color.
 2. Sample triangle, rectangle, and ellipse candidates near pixels with large residual errors.
@@ -26,7 +72,7 @@ The locally trained model and dataset are ignored by Git. Training regenerates t
 5. Recheck the candidate with supersampled antialiasing and commit it only if MSE improves.
 6. Repeat, freezing accepted shapes. Final previews display SVG directly, and PNG exports re-render the geometry at a 1,024-pixel longest side. GIFs retain the fitting resolution. Raster previews and SVG use the same geometry and layer order, though rasterizer boundary conventions can differ slightly.
 
-The UI default uses 128 shape additions, four independent search starts per shape, 256 candidates and 96 refinement attempts per start, and 256-pixel fitting resolution. The function defaults stay smaller for quick scripted experiments. Search starts are refined independently, then their winners are compared with antialiasing. Coordinate-wise mutations allow precise edge adjustments. More detailed photographs may need 256 shapes and larger budgets. This remains an approximation; tiny text and fine textures are difficult.
+The geometric UI settings use 128 shape additions, four independent search starts per shape, 256 candidates and 96 refinement attempts per start, and 256-pixel fitting resolution. The function defaults stay smaller for quick scripted experiments. Search starts are refined independently, then their winners are compared with antialiasing. Coordinate-wise mutations allow precise edge adjustments. More detailed photographs may need 256 shapes and larger budgets. This remains an approximation; tiny text and fine textures are difficult.
 
 The optional **Coherent triangle style** uses triangles only, fixed opacity of 128/255, and a minimum triangle angle of 15 degrees. It avoids thin slivers and mixed-shape silhouettes. It applies to the three sequential methods and is a visual style experiment, not a guarantee of lower pixel error. Pixel MSE does not directly measure edge continuity or perceptual coherence.
 
@@ -78,7 +124,7 @@ We built and ran the original `fogleman/primitive` executable against the bundle
 | ShapeGrad, mixed types | 43,200 | 26.97 | 0.002359 |
 | ShapeGrad, triangles | 43,200 | 24.32 | 0.002483 |
 
-This is a single unseeded upstream run, not a general performance ranking. Even after the regional optimization, the Go implementation evaluated roughly 28–29 times as many candidates and was faster. Its triangle-only image looks more cohesive; its [triangle implementation](https://github.com/fogleman/primitive/blob/master/primitive/triangle.go) rejects angles below 15 degrees. ShapeGrad's similar or lower MSE here does not imply better aesthetics.
+This is a single unseeded upstream run, not a general performance ranking. Even after the regional optimization, the Go implementation evaluated roughly 28â€“29 times as many candidates and was faster. Its triangle-only image looks more cohesive; its [triangle implementation](https://github.com/fogleman/primitive/blob/master/primitive/triangle.go) rejects angles below 15 degrees. ShapeGrad's similar or lower MSE here does not imply better aesthetics.
 
 ![Original Primitive triangles](benchmarks/primitive/primitive_triangles.png)
 ![ShapeGrad mixed](benchmarks/primitive/shapegrad_mixed.png)
@@ -125,11 +171,11 @@ All optimizers now support mixed triangles, rectangles, and ellipses, or a singl
 python -m unittest discover -s tests -v
 ```
 
-Tests check optimal color solving, monotonic accepted error, raster consistency, SVG structure, learned-ranking integration, finite datasets, legacy optimizer behavior, and a full UI generation/export run.
+Tests check contour holes, shared boundary transforms, differentiable SSIM against the reference metric, accepted export quality, uniform inputs, seeded segmentation, optimal color solving, monotonic accepted error, raster consistency, SVG structure, learned-ranking integration, finite datasets, legacy optimizer behavior, and a full UI generation/export run.
 
 Next experiments: train and evaluate on a licensed photo corpus, cache coarse features, compare under equal wall-clock budgets, add confidence intervals across more images/seeds, and test neural proposal prediction. Perceptual features or semantic importance masks could prioritize subjects, but are not implemented.
 
-A defensible resume description: ?Built an image-to-vector reconstruction system with analytical color fitting, residual-guided search, and an Extra Trees proposal-ranking surrogate; evaluated against search and non-ML heuristic baselines using image-disjoint splits.? Include the measured quality/runtime tradeoff rather than claiming generative-model training or acceleration.
+A defensible resume description: "Built an image-to-vector studio combining unsupervised color clustering, contour extraction, joint PyTorch refinement, and a supervised tree proposal ranker; evaluated quality, runtime, and SVG complexity with ablations and image-disjoint validation." Include the measured quality/runtime tradeoff rather than claiming generative-model training or acceleration.
 
 ## Inspiration and license
 

@@ -4,3 +4,8 @@ output/
 *.egg-info/
 models/*.joblib
 models/*.npz
+# Local exploratory previews; published examples live in benchmarks/contours.
+examples/contours*.png
+examples/contours*.svg
+examples/contours-metrics.json
+examples/portrait-contours*

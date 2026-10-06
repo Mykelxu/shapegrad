@@ -4,3 +4,6 @@ numpy>=1.26,<3
 streamlit>=1.49,<1.50
 scikit-learn>=1.5,<2
 joblib>=1.4,<2
+scikit-image>=0.24,<1
+scipy>=1.13,<2
+threadpoolctl>=3.1,<4
