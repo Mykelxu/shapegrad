@@ -11,7 +11,7 @@ from torch import nn
 
 
 class ShapeScene(nn.Module):
-    def __init__(self, target, count=64, seed=7, shape_family="mixed"):
+    def __init__(self, target, count=64, seed=7, shape_family="mixed", opacity_floor=0.):
         super().__init__()
         generator = torch.Generator(device=target.device).manual_seed(seed)
         centers = torch.rand(count, 2, generator=generator, device=target.device)
@@ -21,6 +21,10 @@ class ShapeScene(nn.Module):
         self.centers = nn.Parameter(torch.logit(centers.clamp(.01, .99)))
         self.radii = nn.Parameter(torch.full_like(centers, -2.0))
         self.colors = nn.Parameter(torch.logit(colors))
+        if not 0 <= opacity_floor < 1:
+            raise ValueError("Opacity floor must be in [0, 1)")
+        self.opacity_floor = opacity_floor
+        self.sharpness = 60.
         self.opacity = nn.Parameter(torch.zeros(count, device=target.device))
         if shape_family not in ('mixed', 'ellipse', 'rectangle', 'triangle'):
             raise ValueError('Unknown shape family')
@@ -31,7 +35,11 @@ class ShapeScene(nn.Module):
         self.vertices = nn.Parameter(torch.logit(vertices))
         self.register_buffer('background', target.mean((0, 1)))
 
-    def forward(self, height, width, sharpness=60):
+    def alphas(self):
+        return self.opacity_floor + (1 - self.opacity_floor) * self.opacity.sigmoid()
+
+    def forward(self, height, width, sharpness=None):
+        sharpness = self.sharpness if sharpness is None else sharpness
         y, x = torch.meshgrid(
             (torch.arange(height, device=self.centers.device) + .5) / height,
             (torch.arange(width, device=self.centers.device) + .5) / width,
@@ -40,7 +48,7 @@ class ShapeScene(nn.Module):
         canvas = self.background.expand(height, width, 3)
         for index, (center, radius, color, opacity) in enumerate(zip(
                 self.centers.sigmoid(), .005 + .495 * self.radii.sigmoid(),
-                self.colors.sigmoid(), self.opacity.sigmoid())):
+                self.colors.sigmoid(), self.alphas())):
             kind = int(self.kinds[index])
             if kind == 0:
                 distance = (((grid - center) / radius) ** 2).sum(-1).clamp_min(1e-8).sqrt()
@@ -60,6 +68,18 @@ class ShapeScene(nn.Module):
             canvas = canvas * (1 - alpha) + color * alpha
         return canvas
 
+    def vector_scene(self):
+        from reconstruct import Primitive, VectorScene
+        shapes = []
+        with torch.no_grad():
+            for i in range(len(self.kinds)):
+                c = self.centers[i].sigmoid().cpu().numpy()
+                r = (.005 + .495 * self.radii[i].sigmoid()).cpu().numpy()
+                kind = ('ellipse', 'rectangle', 'triangle')[int(self.kinds[i])]
+                points = self.vertices[i].sigmoid().cpu().numpy() if kind == 'triangle' else np.stack([c-r, c+r])
+                shapes.append(Primitive(kind, points, float(self.alphas()[i]), self.colors[i].sigmoid().cpu().numpy()))
+        return VectorScene(self.background.cpu().numpy(), shapes)
+
     def svg(self, width, height):
         def rgb(value):
             return 'rgb(' + ','.join(str(round(float(v) * 255)) for v in value) + ')'
@@ -67,7 +87,7 @@ class ShapeScene(nn.Module):
                  f'<rect width="100%" height="100%" fill="{rgb(self.background)}"/>']
         with torch.no_grad():
             for index, (c, r, color, a) in enumerate(zip(self.centers.sigmoid(),
-                    .005 + .495 * self.radii.sigmoid(), self.colors.sigmoid(), self.opacity.sigmoid())):
+                    .005 + .495 * self.radii.sigmoid(), self.colors.sigmoid(), self.alphas())):
                 style = f'fill="{rgb(color)}" fill-opacity="{float(a):.5f}"'
                 kind = int(self.kinds[index])
                 if kind == 0:
@@ -93,12 +113,14 @@ def accept_proposal(delta, temperature, random_value):
 
 
 def fit(target, count=64, steps=500, seed=7, edge_weight=.2, callback=None,
-        method='adam', temperature=.001, shape_family='mixed'):
+        method='adam', temperature=.001, shape_family='mixed', sharpen=True, opacity_floor=0.):
     if method not in ('adam', 'hill', 'anneal'):
         raise ValueError('Unknown optimization method')
     if min(count, steps) < 1 or edge_weight < 0 or temperature <= 0:
         raise ValueError('Invalid fit settings')
-    scene = ShapeScene(target, count, seed, shape_family)
+    scene = ShapeScene(target, count, seed, shape_family, opacity_floor)
+    if method == "adam" and sharpen:
+        scene.sharpness = 160.
     generator = torch.Generator(device=target.device).manual_seed(seed + 1)
     optimizer = torch.optim.Adam(scene.parameters(), lr=.035)
     history = []
@@ -108,7 +130,8 @@ def fit(target, count=64, steps=500, seed=7, edge_weight=.2, callback=None,
         rendered = scene(*target.shape[:2])
         return rendered, objective(rendered, target, edge_weight)
     for step in range(steps + 1):
-        with torch.set_grad_enabled(method == 'adam'):
+        # Compare checkpoints at one fixed edge width, even as training sharpens.
+        with torch.no_grad():
             rendered, loss = evaluate()
         value = float(loss.detach())
         history.append(value)
@@ -121,7 +144,9 @@ def fit(target, count=64, steps=500, seed=7, edge_weight=.2, callback=None,
             break
         if method == 'adam':
             optimizer.zero_grad()
-            loss.backward()
+            sharpness = 40. * (4. ** (step / max(1, steps - 1))) if sharpen else 60.
+            training_loss = objective(scene(*target.shape[:2], sharpness=sharpness), target, edge_weight)
+            training_loss.backward()
             optimizer.step()
         else:
             with torch.no_grad():
@@ -153,11 +178,13 @@ def main():
     parser.add_argument('--edge-weight', type=float, default=.2)
     parser.add_argument('--device', choices=['cpu', 'cuda'], default='cpu')
     parser.add_argument('--gif', action='store_true')
+    parser.add_argument('--opacity-floor', type=float, default=0.)
+    parser.add_argument('--no-sharpen', action='store_true', help='Keep fixed soft edges during Adam fitting')
     parser.add_argument('--shape-family', choices=['mixed', 'ellipse', 'rectangle', 'triangle'], default='mixed')
     parser.add_argument('--method', choices=['adam', 'hill', 'anneal'], default='adam')
     args = parser.parse_args()
-    if min(args.shapes, args.steps, args.size) < 1 or args.edge_weight < 0:
-        parser.error('shapes, steps, size must be positive; edge-weight must be nonnegative')
+    if min(args.shapes, args.steps, args.size) < 1 or args.edge_weight < 0 or not 0 <= args.opacity_floor < 1:
+        parser.error('shapes, steps, size must be positive; edge-weight must be nonnegative; opacity floor must be in [0, 1)')
     torch.set_num_threads(4)
     image = ImageOps.exif_transpose(Image.open(args.input)).convert('RGBA')
     background = Image.new('RGBA', image.size, 'white')
@@ -171,9 +198,9 @@ def main():
         print(f'{step:4d}/{args.steps} loss={loss:.6f}')
         if args.gif:
             frames.append(Image.fromarray((rendered.clamp(0, 1).cpu().numpy()*255).astype('uint8')))
-    scene, history = fit(target, args.shapes, args.steps, args.seed, args.edge_weight, progress, method=args.method, shape_family=args.shape_family)
+    scene, history = fit(target, args.shapes, args.steps, args.seed, args.edge_weight, progress, method=args.method, shape_family=args.shape_family, sharpen=not args.no_sharpen, opacity_floor=args.opacity_floor)
     with torch.no_grad():
-        rendered = scene(*target.shape[:2]).cpu().numpy()
+        rendered = scene.vector_scene().render(*target.shape[:2])
     result = Image.fromarray((rendered.clip(0, 1)*255).astype('uint8'))
     result.save(args.output / 'result.png')
     (args.output / 'result.svg').write_text(scene.svg(*original_size), encoding='utf-8')

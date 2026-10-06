@@ -52,6 +52,22 @@ class ShapeGradTests(unittest.TestCase):
         self.assertIsNotNone(scene.vertices.grad)
         self.assertGreater(float(scene.vertices.grad.abs().sum()), 0)
 
+    def test_sharp_adam_and_opacity_export(self):
+        target = torch.ones(16, 20, 3) * .8
+        target[4:12, 5:15] = torch.tensor([.9, .1, .2])
+        scene, history = fit(target, count=6, steps=30, shape_family='triangle', opacity_floor=.6)
+        self.assertEqual(scene.sharpness, 160.)
+        self.assertAlmostEqual(float(objective(scene(16, 20), target).detach()), min(history), places=6)
+        self.assertTrue(bool((scene.alphas() >= .6).all()))
+        vector = scene.vector_scene()
+        self.assertEqual(len(vector.shapes), 6)
+        root = ET.fromstring(scene.svg(200, 160))
+        polygons = root.findall('{http://www.w3.org/2000/svg}polygon')
+        for polygon, primitive, alpha in zip(polygons, vector.shapes, scene.alphas().detach()):
+            self.assertAlmostEqual(float(polygon.attrib['fill-opacity']), float(alpha), places=4)
+            self.assertAlmostEqual(primitive.alpha, float(alpha), places=6)
+        self.assertTrue(torch.isfinite(torch.tensor(vector.render(16, 20))).all())
+
     def test_seed(self):
         target = torch.rand(8, 8, 3)
         self.assertTrue(torch.equal(ShapeScene(target, 3)(8, 8), ShapeScene(target, 3)(8, 8)))

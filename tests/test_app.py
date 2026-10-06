@@ -4,6 +4,21 @@ from streamlit.testing.v1 import AppTest
 
 
 class AppTests(unittest.TestCase):
+    def test_adam_appearance_controls(self):
+        app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'), default_timeout=60).run()
+        app.selectbox[0].select('Gradient descent (Adam)')
+        app.selectbox[1].select('triangle')
+        app.slider[0].set_value(8)
+        app.slider[1].set_value(25)
+        app.select_slider[0].set_value(48)
+        app.button[0].click().run()
+        self.assertFalse(app.exception)
+        result = app.session_state['results'][0]
+        self.assertEqual(result['method'], 'adam')
+        self.assertIn('<polygon', result['svg'])
+        self.assertTrue(result['metrics']['settings']['sharpen'])
+        self.assertEqual(result['residual'].shape[-1], 3)
+
     def test_generate_and_compare(self):
         app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'), default_timeout=60).run()
         self.assertFalse(app.exception)

@@ -10,7 +10,6 @@ import streamlit as st
 import torch
 from shapegrad import fit
 from reconstruct import reconstruct
-from reconstruct import VectorScene, Primitive
 import joblib
 from learn_proposals import CoarseRanker
 from skimage.metrics import structural_similarity
@@ -28,8 +27,10 @@ with st.sidebar:
     chosen = st.selectbox("Optimizer", list(methods))
     family = st.selectbox("Primitive family (geometric modes)", ["mixed", "triangle", "rectangle", "ellipse"])
     compare = st.checkbox("Compare search, learned, and heuristic")
+    st.subheader("Composition")
     coherent = st.checkbox("Coherent triangle style", value=False, help="For sequential methods: triangles only, consistent half opacity, and no angles below 15 degrees. A style experiment; it does not guarantee lower pixel error.")
     count = st.slider("Shapes", 8, 512, 128, 8)
+    st.subheader("Search budget")
     steps = st.slider("Adam / global search iterations", 25, 5000, 600, 25)
     candidates = st.slider("Candidates per search start", 8, 1024, 256, 8)
     refinements = st.slider("Refinement attempts per start", 8, 512, 96, 8)
@@ -38,8 +39,12 @@ with st.sidebar:
     seed = st.number_input("Random seed", min_value=0, max_value=1000000, value=7)
     edge = st.slider("Edge emphasis", 0.0, 1.0, .2, .05)
     temperature = st.number_input("Annealing starting temperature", min_value=.00001, max_value=.1, value=.001, format="%.5f")
+    with st.expander("Gradient appearance", expanded=methods[chosen] == "adam"):
+        sharpen = st.checkbox("Sharpen edges during Adam fitting", value=True, help="Begin with smooth edges for movement, then narrow the edge transition. Final exports always use crisp vector geometry.")
+        opacity_floor = st.slider("Minimum gradient shape opacity", 0.0, .9, .15, .05, help="Higher values reduce translucent haze but can hide earlier shapes. Applies to Adam, hill climbing, and annealing only.")
     example = st.selectbox("Example image", ["Landscape", "Portrait"], key='example')
     generate = st.button("Generate art", type="primary")
+    st.caption("Try triangles for a faceted style. More search starts improve exploration; more shapes add detail.")
     st.caption("Each accepted shape improves the reconstruction. Choose a primitive family and increase the shape or search budget for more detail.")
 try:
     example_path = 'examples/portrait-source.png' if example == 'Portrait' else 'examples/target.png'
@@ -80,7 +85,7 @@ if generate:
             effective_family = 'triangle' if coherent else family
             scene, history, evaluations = reconstruct(target.numpy(), count, candidates, refinements, int(seed), model, callback, restarts=int(restarts), shape_family=effective_family, min_triangle_angle=15 if coherent else 0, fixed_opacity=128/255 if coherent else None)
         else:
-            scene, history = fit(target, count, steps, int(seed), edge, callback, method, temperature, shape_family=family)
+            scene, history = fit(target, count, steps, int(seed), edge, callback, method, temperature, shape_family=family, sharpen=sharpen, opacity_floor=opacity_floor)
             evaluations = None
         elapsed = time.perf_counter() - started
         with torch.no_grad():
@@ -93,29 +98,23 @@ if generate:
         if method in VECTOR_METHODS:
             export_scene = scene
         else:
-            with torch.no_grad():
-                shapes = []
-                for i in range(count):
-                    c = scene.centers[i].sigmoid().numpy()
-                    r = (.005 + .495 * scene.radii[i].sigmoid()).numpy()
-                    kind = ('ellipse', 'rectangle', 'triangle')[int(scene.kinds[i])]
-                    points = scene.vertices[i].sigmoid().numpy() if kind == 'triangle' else np.stack([c-r, c+r])
-                    shapes.append(Primitive(kind, points, float(scene.opacity[i].sigmoid()), scene.colors[i].sigmoid().numpy()))
-                export_scene = VectorScene(scene.background.numpy(), shapes)
+            export_scene = scene.vector_scene()
+        fitted = export_scene.render(*target.shape[:2])
+        preview = Image.fromarray((fitted.clip(0, 1) * 255).astype("uint8"))
+        live.image(svg, caption="Completed vector reconstruction", width="stretch")
         output_image = Image.fromarray((export_scene.render(max(1, output_height), max(1, output_width)).clip(0, 1)*255).astype('uint8'))
         png = BytesIO()
         output_image.save(png, format="PNG")
         gif = BytesIO()
         frames.append(preview)
         frames[0].save(gif, format="GIF", save_all=True, append_images=frames[1:], duration=120, loop=0)
-        settings = dict(shapes=count, steps=steps, size=size, seed=int(seed), edge_weight=edge, temperature=temperature, method=method, candidates=candidates, refinements=refinements, restarts=int(restarts), shape_family=effective_family if method in VECTOR_METHODS else family, coherent_style=coherent and method in ('greedy', 'learned', 'coarse'), scoring_backend='regional' if method in ('greedy', 'learned', 'coarse') else 'torch')
-        fitted = array if method in VECTOR_METHODS else export_scene.render(*target.shape[:2])
+        settings = dict(shapes=count, steps=steps, size=size, seed=int(seed), edge_weight=edge, temperature=temperature, method=method, candidates=candidates, refinements=refinements, restarts=int(restarts), shape_family=effective_family if method in VECTOR_METHODS else family, coherent_style=coherent and method in ('greedy', 'learned', 'coarse'), scoring_backend='regional' if method in ('greedy', 'learned', 'coarse') else 'torch', sharpen=sharpen if method == 'adam' else None, opacity_floor=opacity_floor if method not in VECTOR_METHODS else None)
         output_mse = float(np.mean((fitted - target.numpy()) ** 2))
         window = min(7, min(target.shape[:2]))
         window = window if window % 2 else window - 1
         ssim = float(structural_similarity(target.numpy(), fitted, channel_axis=-1, data_range=1, win_size=window)) if window >= 3 else None
         metrics = dict(output_mse=output_mse, ssim=ssim, svg_bytes=len(svg.encode()), exact_evaluations=evaluations, objective="exported pixel MSE" if method in VECTOR_METHODS else "pixel + edge", settings=settings, initial_loss=history[0], best_loss=min(history), seconds=elapsed, loss_history=history)
-        results.append(dict(label=label, method=method, image=preview, png=png.getvalue(), gif=gif.getvalue(), svg=svg, metrics=metrics))
+        results.append(dict(label=label, method=method, source=image.copy(), residual=np.abs(fitted-target.numpy()), image=preview, png=png.getvalue(), gif=gif.getvalue(), svg=svg, metrics=metrics))
     st.session_state["results"] = results
     progress.empty()
     status.empty()
@@ -129,7 +128,16 @@ if "results" in st.session_state:
     st.caption("Geometric search curves count shape additions. Pixel MSE and SSIM in the table use the actual exported geometry at fitting resolution. Learned and heuristic modes consider 4x the candidate pool but use the same number of full-resolution evaluations. Their feature overhead is included in elapsed time. Equal iteration counts are not equal compute budgets. Compare both loss and elapsed time; one image or seed is not a general benchmark.")
     for tab, result in zip(st.tabs([r["label"] for r in results]), results):
         with tab:
-            st.image(result["svg"], caption="Vector output - sharp at any display size", width="stretch")
+            source_col, art_col = st.columns(2)
+            source_col.image(result["source"], caption="Source at fitting resolution", width="stretch")
+            art_col.image(result["svg"], caption="Crisp vector output", width="stretch")
+            m = result["metrics"]
+            metrics_cols = st.columns(3)
+            metrics_cols[0].metric("Pixel error", f'{m["output_mse"]:.5f}')
+            metrics_cols[1].metric("Structural similarity", f'{m["ssim"]:.3f}' if m["ssim"] is not None else "N/A")
+            metrics_cols[2].metric("Runtime", f'{m["seconds"]:.1f} s')
+            with st.expander("Where the reconstruction still differs"):
+                st.image(result["residual"].clip(0, 1), caption="Absolute RGB error: brighter areas have larger differences", width="stretch")
             cols = st.columns(4)
             for col, label, key, extension, mime in zip(cols, ["SVG", "PNG", "Animation", "Metrics"], ["svg", "png", "gif", "metrics"], ["svg", "png", "gif", "json"], ["image/svg+xml", "image/png", "image/gif", "application/json"]):
                 data = json.dumps(result[key], indent=2) if key == "metrics" else result[key]

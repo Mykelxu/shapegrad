@@ -22,6 +22,12 @@ python learn_proposals.py --benchmark
 
 The locally trained model and dataset are ignored by Git. Training regenerates them in `models/`; the model card is included in the repository. Train before selecting learned mode. The UI loads only the project's local model artifact.
 
+## Sharper gradient reconstruction
+
+Adam still optimizes simple shapes, without tracing. Its training edges progressively sharpen from 40 to 160 in renderer units; checkpoint losses are evaluated at the fixed final sharpness so changing edge width cannot falsely improve the history. Disable sharpening in **Gradient appearance** for the fixed-width baseline. The opacity floor controls how transparent shapes may become (studio default 0.15); higher floors can reduce haze but can also obscure useful layers. Transparency alone does not determine sharpness.
+
+Completed previews and PNG exports use antialiased vector geometry, while live gradient previews show the differentiable renderer. The studio includes side-by-side source/output, measured quality and runtime, and an absolute-error view. These changes address rendering softness; random initialization and limited shape budgets can still lose detail. No general quality improvement is claimed without matched benchmarks.
+
 ## Archived contour tracing experiment (CLI only)
 
 This separate experiment traces color regions. It is excluded from the studio because its traced silhouettes do not match the intended simple-shape aesthetic:
