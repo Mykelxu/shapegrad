@@ -4,21 +4,6 @@ from streamlit.testing.v1 import AppTest
 
 
 class AppTests(unittest.TestCase):
-    def test_contour_generation(self):
-        app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'), default_timeout=60).run()
-        app.slider[0].set_value(8)
-        app.select_slider[0].set_value(48)
-        app.slider(key='contour_steps').set_value(10)
-        app.selectbox(key='example').select('Portrait')
-        app.button[0].click().run()
-        self.assertFalse(app.exception)
-        result = app.session_state['results'][0]
-        self.assertEqual(result['method'], 'contour')
-        self.assertIn('<path', result['svg'])
-        details = result['metrics']['contour_details']
-        self.assertGreaterEqual(details['best_ssim'], details['initialized_ssim'])
-        self.assertLessEqual(details['best_mse'], details['initialized_mse'])
-
     def test_generate_and_compare(self):
         app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'), default_timeout=60).run()
         self.assertFalse(app.exception)
@@ -28,7 +13,7 @@ class AppTests(unittest.TestCase):
         app.slider[2].set_value(8)
         app.slider[3].set_value(8)
         app.number_input[0].set_value(1)
-        app.selectbox[0].select("Residual-guided search")
+        self.assertEqual(app.selectbox[0].value, "Residual-guided search")
         app.button[0].click().run()
         self.assertFalse(app.exception)
         results = app.session_state['results']

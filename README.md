@@ -1,6 +1,6 @@
 # ShapeGrad
 
-Image-to-SVG reconstruction with contour-guided initialization, unsupervised color clustering, and joint PyTorch refinement. Compare connected vector regions with residual-guided primitive search and a supervised tree proposal ranker in a local experiment UI.
+Reconstruct images from overlapping triangles, rectangles, and ellipses. Residual-guided search optimizes each added primitive; a supervised tree model learns to rank proposals. Compare geometric optimizers in a local UI and export editable SVG artwork.
 
 ## Run locally
 
@@ -12,9 +12,9 @@ pip install -r requirements.txt
 python -m streamlit run app.py
 ```
 
-Open http://localhost:8501. **Contour-guided regions** is the default. Upload a picture or select the built-in landscape or portrait. Download SVG, PNG, GIF, and metrics. The table reports pixel MSE, structural similarity (SSIM), time, and SVG size from the fitted scene geometry. The site runs locally; no hosted deployment is configured.
+Open http://localhost:8501. **Residual-guided search** is the default. It builds the image one simple shape at a time, without tracing image boundaries. Upload a picture or select the built-in landscape or portrait. Download SVG, PNG, GIF, and metrics. The table reports pixel MSE, structural similarity (SSIM), time, and SVG size from the fitted scene geometry. The site runs locally; no hosted deployment is configured.
 
-Train the optional supervised proposal ranker before selecting it or the four-method comparison:
+Train the optional supervised proposal ranker before selecting it or the three-method comparison:
 
 ```sh
 python learn_proposals.py --benchmark
@@ -22,9 +22,9 @@ python learn_proposals.py --benchmark
 
 The locally trained model and dataset are ignored by Git. Training regenerates them in `models/`; the model card is included in the repository. Train before selecting learned mode. The UI loads only the project's local model artifact.
 
-## Contour-guided reconstruction
+## Archived contour tracing experiment (CLI only)
 
-The new mode follows the input image instead of placing unrelated shapes:
+This separate experiment traces color regions. It is excluded from the studio because its traced silhouettes do not match the intended simple-shape aesthetic:
 
 1. Fit a MiniBatchKMeans color palette in CIE Lab space. Merge nearly identical centers to avoid splitting flat colors into artificial fragments.
 2. Clean isolated label noise with a categorical majority filter, then find connected components and trace their boundaries.
@@ -32,7 +32,7 @@ The new mode follows the input image instead of placing unrelated shapes:
 4. Jointly optimize palette colors, background, and a shared smooth deformation field using PyTorch autograd. The shared field moves common boundary locations consistently rather than moving neighboring shapes independently.
 5. Use pixel, edge, differentiable SSIM, and deformation-smoothness losses. Accept a refinement checkpoint only if the re-rendered vector scene has lower MSE and no lower SSIM than the currently accepted scene.
 
-The contour UI defaults are a 24-color palette budget, up to 128 foreground layers, 256-pixel fitting resolution, and 80 refinement steps. Similar colors can merge, so the actual layer count is often smaller. Compound paths can have many vertices: layer count alone is not a complexity measure. The field moves boundaries by up to two fitting pixels and densifies long edges when exporting a nonlinear deformation. Final PNGs are rendered at a 1,024-pixel longest side.
+The contour experiment settings are a 24-color palette budget, up to 128 foreground layers, 256-pixel fitting resolution, and 80 refinement steps. Similar colors can merge, so the actual layer count is often smaller. Compound paths can have many vertices: layer count alone is not a complexity measure. The field moves boundaries by up to two fitting pixels and densifies long edges when exporting a nonlinear deformation. Final PNGs are rendered at a 1,024-pixel longest side.
 
 The palette fit is unsupervised ML. Joint refinement is per-image differentiable optimization, not a pretrained generative network. The supervised proposal ranker remains a separate comparison method. No pretrained perceptual network or text-to-image model is included.
 
